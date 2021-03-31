@@ -1,0 +1,18 @@
+:root {
+    --background: #f2f3f5;
+}
+
+body, input, button, textarea {
+    font: 600 18px Nunito, sans-serif;
+}
+
+a {
+    color: var(--info);
+    text-decoration: none;
+    transition-duration: 0.4s;
+}
+
+a:hover {
+    text-decoration: none;
+    color: #008fd1;
+}
