@@ -1,0 +1,8 @@
+.productImageButton {
+    width: 70px;
+    height: 70px;
+    display: flex;
+    background: var(--background);
+    border-radius: 5px;
+    border: 2px #000 solid;
+}

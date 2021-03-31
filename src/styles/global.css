@@ -1,5 +1,10 @@
 :root {
     --background: #f2f3f5;
+    --background-dark: #dddddd;
+}
+
+body {
+    background-color: var(--background-dark);
 }
 
 body, input, button, textarea {
@@ -14,5 +19,24 @@ a {
 
 a:hover {
     text-decoration: none;
-    color: #008fd1;
+    color: #00d1c7;
+}
+
+.content-page {
+    background-color: var(--background);
+    border-radius: 10px;
+    box-shadow: 3px 3px 10px rgb(0 0 0 / 32%);
+    margin-bottom: 2rem;
+    padding: 1rem 1rem;
+}
+
+.btn-link {
+    color: var(--info);
+    text-decoration: none !important;
+    transition-duration: 0.4s;
+    padding: 0;
+}
+
+.btn-link:hover {
+    color: #00d1c7;
 }
