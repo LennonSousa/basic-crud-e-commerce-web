@@ -1,8 +1,12 @@
-import { useState } from 'react';
+import { useState, useContext } from 'react';
+import { useRouter } from 'next/router';
 import Link from 'next/link';
-import { Container, Row, Col, Button, Form, Image, Modal } from 'react-bootstrap';
+import { Container, Row, Col, Button, Form, Image, Modal, Spinner, Toast } from 'react-bootstrap';
 import { Formik } from 'formik';
 import * as Yup from 'yup';
+import { FaLock, FaCheckCircle } from 'react-icons/fa';
+
+import { AuthContext } from '../contexts/authContext';
 
 import styles from '../styles/pages/LandingPage.module.css';
 
@@ -16,6 +20,9 @@ const resetPasswordValidationSchema = Yup.object().shape({
 });
 
 export default function Home() {
+  const router = useRouter();
+  const { signed, handleLogin } = useContext(AuthContext);
+
   const [showModalConfirmEmail, setShowModalConfirmEmail] = useState(false);
 
   const handleCloseModalConfirmEmail = () => setShowModalConfirmEmail(false);
@@ -25,6 +32,13 @@ export default function Home() {
 
   const handleCloseModalResetPassword = () => setShowModalResetPassword(false);
   const handleShowModalResetPassword = () => setShowModalResetPassword(true);
+
+  const [errorMessageLogin, setErrorMessageLogin] = useState('');
+  const [waitingLogin, setWaitingLogin] = useState(false);
+
+  const [showErrorLogin, setShowErrorLogin] = useState(false);
+
+  const toggleShowLogin = () => setShowErrorLogin(!showErrorLogin);
 
   return (
     <div className={styles.pageContainer}>
@@ -43,11 +57,30 @@ export default function Home() {
                     password: '',
                   }}
                   onSubmit={async values => {
+                    setWaitingLogin(true);
+
+                    try {
+                      const resLogin = await handleLogin(values.email, values.password);
+
+                      if (!resLogin) {
+                        setShowErrorLogin(true);
+                        setErrorMessageLogin("Incorrect e-mail or password!");
+                        toggleShowLogin();
+                      }
+                      else if (resLogin === "error") {
+                        setShowErrorLogin(true);
+                        setErrorMessageLogin("Connection error!");
+                        toggleShowLogin();
+                      }
+                    }
+                    catch { }
+
+                    setWaitingLogin(false);
                   }}
                   validationSchema={validationSchema}
-                  isInitialValid={false}
+                  validateOnChange={false}
                 >
-                  {({ handleChange, handleSubmit, values, errors, isValid, touched }) => (
+                  {({ handleBlur, handleChange, handleSubmit, values, errors, isValid, touched }) => (
                     <Form onSubmit={handleSubmit}>
                       <Row>
                         <Col>
@@ -55,9 +88,10 @@ export default function Home() {
                             <Form.Label>Your e-mail</Form.Label>
                             <Form.Control type="text"
                               onChange={handleChange}
+                              onBlur={handleBlur}
                               value={values.email}
                               name="email"
-                              isInvalid={!!errors.email}
+                              isInvalid={!!errors.email && touched.email}
                             />
                             {touched.email && <Form.Control.Feedback type="invalid">{errors.email}</Form.Control.Feedback>}
                           </Form.Group>
@@ -66,15 +100,27 @@ export default function Home() {
                             <Form.Label>Password</Form.Label>
                             <Form.Control type="password"
                               onChange={handleChange}
+                              onBlur={handleBlur}
                               value={values.password}
                               name="password"
-                              isInvalid={!!errors.password}
+                              isInvalid={!!errors.password && touched.password}
                             />
                             {touched.password && <Form.Control.Feedback type="invalid">{errors.password}</Form.Control.Feedback>}
                           </Form.Group>
 
                           <Button type="submit" variant="info" disabled={isValid ? false : true}>
-                            Signin
+                            {
+                              signed ? <FaCheckCircle /> :
+                                (
+                                  waitingLogin ? <Spinner
+                                    as="span"
+                                    animation="border"
+                                    size="sm"
+                                    role="status"
+                                    aria-hidden="true"
+                                  /> : "Sign in"
+                                )
+                            }
                           </Button>
                         </Col>
                       </Row>
@@ -83,6 +129,14 @@ export default function Home() {
                         <Col>
                           <button className={`btn btn-link ${styles.formBtnLink}`} onClick={handleShowModalResetPassword}>Forgot my password</button>
                         </Col>
+
+                        <Toast onClose={toggleShowLogin} show={showErrorLogin} animation={false} autohide>
+                          <Toast.Header style={{ backgroundColor: 'var(--danger)', color: '#fff' }}>
+                            <FaLock />
+                            <strong className="mr-auto">Nice try</strong>
+                          </Toast.Header>
+                          <Toast.Body>{errorMessageLogin}</Toast.Body>
+                        </Toast>
                       </Row>
 
                       <Row>

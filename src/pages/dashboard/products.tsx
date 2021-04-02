@@ -1,13 +1,18 @@
-import { useState } from 'react';
-import Link from 'next/link';
-import { Container, Row, Col, Button, Form, Image, Modal, ListGroup, ListGroupItem } from 'react-bootstrap';
+import { useRouter } from 'next/router';
 import { Formik } from 'formik';
+import { ChangeEvent, useContext, useEffect, useState } from 'react';
+import { Button, Col, Container, Form, ListGroup, Modal, Row, Spinner, Toast } from 'react-bootstrap';
+import { FaPlus, FaTimes } from 'react-icons/fa';
 import * as Yup from 'yup';
-import { FaPause, FaPlay, FaPencilAlt, FaTrashAlt, FaPlus } from 'react-icons/fa';
 
 import PageHeader from '../../components/PageHeader';
-
+import ProductItem from '../../components/Products';
+import { AuthContext } from '../../contexts/authContext';
+import { ProductsContext } from '../../contexts/productsContext';
+import api from '../../services/api';
 import styles from '../../styles/pages/Products.module.css';
+import InputMask from '../../components/InputMask';
+import { GetServerSideProps } from 'next';
 
 const validationSchema = Yup.object().shape({
     name: Yup.string().required('Required!'),
@@ -15,11 +20,69 @@ const validationSchema = Yup.object().shape({
     price: Yup.string().required('Required'),
 });
 
-export default function Home() {
+export default function Products() {
+    const router = useRouter();
+
+    const { loading } = useContext(AuthContext);
+    const { products, handleProducts } = useContext(ProductsContext);
+
     const [showModalProduct, setShowModalProduct] = useState(false);
 
+    const [price, setPrice] = useState(0.00);
+
     const handleCloseModalProduct = () => setShowModalProduct(false);
-    const handleShowModalProduct = () => setShowModalProduct(true);
+    const handleShowModalProduct = () => { setShowModalProduct(true); setImagesToSave([]); setImagesPreview([]) };
+
+    const [imagesToSave, setImagesToSave] = useState<File[]>([]);
+    const [imagesPreview, setImagesPreview] = useState<string[]>([]);
+
+    const [productSaving, setProductSaving] = useState(false);
+
+    const [showErrorProduct, setShowErrorProduct] = useState(false);
+    const toggleShowErrorProduct = () => setShowErrorProduct(!showErrorProduct);
+
+    useEffect(() => {
+        if (!loading) {
+            api.get('products',
+                {
+                    validateStatus: function (status) {
+                        return status < 500; // Resolve only if the status code is less than 500.
+                    },
+                }
+            ).then(res => {
+                if (res.status === 401) {
+                    return router.replace('/');
+                }
+
+                handleProducts(res.data);
+            })
+                .catch(err => {
+                    console.log('error get products');
+                    console.log(err);
+                });
+        }
+
+    }, [loading]);
+
+    function handleImages(event: ChangeEvent<HTMLInputElement>) {
+        const image = event.target.files[0];
+
+        setImagesToSave([...imagesToSave, image]);
+
+        const imagesToPreview = URL.createObjectURL(image);
+
+        setImagesPreview([...imagesPreview, imagesToPreview]);
+    }
+
+    function handleDeleteImagePreview(indexToDelete: number) {
+        setImagesToSave(imagesToSave.filter((image, index) => {
+            return index !== indexToDelete
+        }));
+
+        setImagesPreview(imagesPreview.filter((image, index) => {
+            return index !== indexToDelete
+        }));
+    }
 
     return (
         <>
@@ -28,63 +91,18 @@ export default function Home() {
                 <Row>
                     <Col>
                         <Button title="Create a product" onClick={handleShowModalProduct} variant="outline-info">
-                            <FaPlus /> product
+                            <FaPlus /> Product
                         </Button>
                     </Col>
                 </Row>
                 <Row className="justify-content-center mt-3" style={{ minHeight: 800 }}>
                     <Col>
                         <ListGroup>
-                            <ListGroup.Item action variant="danger" as="a">
-                                <Row className="align-items-center">
-                                    <Col>
-                                        Product 01
-                                    </Col>
-
-                                    <Col sm={2}>
-                                        <Button title="Pause product" variant="outline-danger">
-                                            <FaPlay />
-                                        </Button>
-                                    </Col>
-
-                                    <Col sm={2}>
-                                        <Button title="Edit product" variant="outline-info">
-                                            <FaPencilAlt />
-                                        </Button>
-                                    </Col>
-
-                                    <Col sm={2}>
-                                        <Button title="Delete product" variant="outline-info">
-                                            <FaTrashAlt />
-                                        </Button>
-                                    </Col>
-                                </Row>
-                            </ListGroup.Item>
-                            <ListGroup.Item action variant="light" as="a">
-                                <Row className="align-items-center">
-                                    <Col>
-                                        Product 01
-                                    </Col>
-
-                                    <Col sm={2}>
-                                        <Button title="Pause product" variant="outline-info">
-                                            <FaPause />
-                                        </Button>
-                                    </Col>
-
-                                    <Col sm={2}>
-                                        <Button title="Edit product" variant="outline-info">
-                                            <FaPencilAlt />
-                                        </Button>
-                                    </Col>
-
-                                    <Col sm={2}>
-                                        <Button title="Delete product" variant="outline-info">
-                                            <FaTrashAlt />
-                                        </Button>
-                                    </Col>
-                                </Row>
-                            </ListGroup.Item>
+                            {
+                                products.map((product, index) => {
+                                    return <ProductItem key={product.id} product={product} />
+                                })
+                            }
                         </ListGroup>
                     </Col>
                 </Row>
@@ -92,9 +110,7 @@ export default function Home() {
 
             <Modal show={showModalProduct} onHide={handleCloseModalProduct}>
                 <Modal.Header>
-                    <Modal.Title>
-                        Create a product
-          </Modal.Title>
+                    <Modal.Title>Create a product</Modal.Title>
                 </Modal.Header>
                 <Formik
                     initialValues={{
@@ -103,29 +119,75 @@ export default function Home() {
                         price: 0,
                     }}
                     onSubmit={async values => {
+                        setProductSaving(true);
+
+                        try {
+                            const data = new FormData();
+
+                            data.append('name', values.name);
+                            data.append('description', values.description);
+                            data.append('price', String(values.price));
+
+                            imagesToSave.forEach(image => {
+                                data.append('images', image);
+                            });
+
+                            await api.post('products', data);
+
+                            const res = await api.get('products');
+
+                            handleProducts(res.data);
+
+                            handleCloseModalProduct();
+                        }
+                        catch {
+                            toggleShowErrorProduct();
+                        }
+
+                        setProductSaving(false);
                     }}
                     validationSchema={validationSchema}
                     isInitialValid={false}
                 >
-                    {({ handleChange, handleSubmit, values, errors, isValid, touched }) => (
+                    {({ handleChange, handleSubmit, values, errors, isValid, touched, setFieldValue }) => (
                         <Form onSubmit={handleSubmit}>
                             <Modal.Body>
                                 <Row className="mb-3">
-                                    <Col>
-                                        <Button title="Add a product image" variant="secondary">
-                                            <Row>
-                                                <Col>
-                                                    <FaPlus />
-                                                </Col>
-                                            </Row>
+                                    {
+                                        imagesPreview.map((image, index) => {
+                                            return (
+                                                <div key={index} className={styles.imagePreviewContainer}>
+                                                    <button
+                                                        type="button"
+                                                        title="Delete image"
+                                                        onClick={() => { handleDeleteImagePreview(index) }}
+                                                    >
+                                                        <FaTimes size={14} />
+                                                    </button>
+                                                    <img
+                                                        src={image}
+                                                        className={styles.imagePreview}
+                                                        alt={`Image Preview ${index}`}
+                                                    />
+                                                </div>
+                                            )
+                                        })
+                                    }
 
-                                            <Row>
-                                                <Col>
-                                                    image
+                                    <label htmlFor="image[]" className={styles.productImageButton}>
+                                        <Row>
+                                            <Col>
+                                                <FaPlus />
+                                            </Col>
+                                        </Row>
+
+                                        <Row>
+                                            <Col>
+                                                Image
                                                 </Col>
-                                            </Row>
-                                        </Button>
-                                    </Col>
+                                        </Row>
+                                        <input type="file" onChange={handleImages} id="image[]" />
+                                    </label>
                                 </Row>
                                 <Row>
                                     <Col>
@@ -153,22 +215,53 @@ export default function Home() {
                                             {touched.description && <Form.Control.Feedback type="invalid">{errors.description}</Form.Control.Feedback>}
                                         </Form.Group>
 
-                                        <Form.Group className="mb-4" controlId="formLogintEmail">
-                                            <Form.Label>Price</Form.Label>
-                                            <Form.Control type="text"
-                                                onChange={handleChange}
-                                                value={values.price}
-                                                name="price"
-                                                isInvalid={!!errors.price}
-                                            />
-                                            {touched.price && <Form.Control.Feedback type="invalid">{errors.price}</Form.Control.Feedback>}
-                                        </Form.Group>
+                                        <Form.Row className="mt-4">
+                                            <Col className="col-4">
+                                                <InputMask
+                                                    mask="currency"
+                                                    prefix="$"
+                                                    defaultValue={Intl.NumberFormat('us', { minimumFractionDigits: 2 }).format(price)}
+                                                    onBlur={(e: any) => {
+                                                        setPrice(e.target.value);
+                                                        setFieldValue('price', Number(e.target.value.replace('.', '').replace(',', '.')))
+                                                    }}
+                                                    name="price"
+                                                />
+                                                {touched.price && <Form.Control.Feedback type="invalid">{errors.price}</Form.Control.Feedback>}
+                                            </Col>
+                                        </Form.Row>
                                     </Col>
                                 </Row>
                             </Modal.Body>
                             <Modal.Footer>
+                                <div
+                                    aria-live="polite"
+                                    aria-atomic="true"
+                                    style={{
+                                        position: 'absolute',
+                                        left: 10,
+                                        bottom: 10,
+                                        zIndex: 9999
+                                    }}
+                                >
+                                    <Toast onClose={toggleShowErrorProduct} show={showErrorProduct} animation={false} autohide delay={5000}>
+                                        <Toast.Header style={{ backgroundColor: 'var(--danger)', color: '#fff' }}>
+                                            <FaTimes />
+                                            <strong className="mr-auto">Error</strong>
+                                        </Toast.Header>
+                                        <Toast.Body>Error to save</Toast.Body>
+                                    </Toast>
+                                </div>
                                 <Button variant="info" disabled={isValid ? false : true} type="submit">
-                                    Create
+                                    {
+                                        productSaving ? <Spinner
+                                            as="span"
+                                            animation="border"
+                                            size="sm"
+                                            role="status"
+                                            aria-hidden="true"
+                                        /> : "Create"
+                                    }
                                 </Button>
                                 <Button variant="secondary" onClick={handleCloseModalProduct}>
                                     Close
@@ -180,4 +273,39 @@ export default function Home() {
             </Modal>
         </>
     )
+}
+
+export const getServerSideProps: GetServerSideProps = async (context) => {
+    const { token } = context.req.cookies;
+
+    if (!token) {
+        return {
+            redirect: {
+                destination: '/',
+                permanent: false,
+            },
+        }
+    }
+
+    const res = await api.get('/users/authenticated',
+        {
+            validateStatus: function (status) {
+                return status < 500; // Resolve only if the status code is less than 500.
+            },
+            headers: { Authorization: `Bearer ${token}` }
+        }
+    );
+
+    if (res.status === 401) { // Not authorized!
+        return {
+            redirect: {
+                destination: '/',
+                permanent: false,
+            },
+        }
+    }
+
+    return {
+        props: {},
+    }
 }
