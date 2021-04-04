@@ -1,4 +1,5 @@
 import { useRouter } from 'next/router';
+import { GetServerSideProps } from 'next';
 import { Formik } from 'formik';
 import { ChangeEvent, useContext, useEffect, useState } from 'react';
 import { Button, Col, Container, Form, ListGroup, Modal, Row, Spinner, Toast } from 'react-bootstrap';
@@ -9,10 +10,11 @@ import PageHeader from '../../components/PageHeader';
 import ProductItem from '../../components/Products';
 import { AuthContext } from '../../contexts/authContext';
 import { ProductsContext } from '../../contexts/productsContext';
+
 import api from '../../services/api';
 import styles from '../../styles/pages/Products.module.css';
 import InputMask from '../../components/InputMask';
-import { GetServerSideProps } from 'next';
+
 
 const validationSchema = Yup.object().shape({
     name: Yup.string().required('Required!'),
@@ -139,6 +141,8 @@ export default function Products() {
                             handleProducts(res.data);
 
                             handleCloseModalProduct();
+
+                            setPrice(0);
                         }
                         catch {
                             toggleShowErrorProduct();
@@ -186,7 +190,7 @@ export default function Products() {
                                                 Image
                                                 </Col>
                                         </Row>
-                                        <input type="file" onChange={handleImages} id="image[]" />
+                                        <input type="file" accept=".jpg, .jpeg, .png" onChange={handleImages} id="image[]" />
                                     </label>
                                 </Row>
                                 <Row>

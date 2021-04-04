@@ -1,7 +1,10 @@
+import { useState } from 'react';
 import Link from 'next/link';
-import { Container, Row, Col, Button, Form, Image } from 'react-bootstrap';
+import { Container, Row, Col, Button, Form, Image, Modal, Spinner } from 'react-bootstrap';
 import { Formik } from 'formik';
 import * as Yup from 'yup';
+
+import api from '../services/api';
 
 import styles from '../styles/pages/LandingPage.module.css';
 
@@ -10,7 +13,15 @@ const validationSchema = Yup.object().shape({
   email: Yup.string().email('Invalid e-mail').required('Required!'),
 });
 
-export default function Home() {
+export default function Register() {
+  const [showModalConfirmEmail, setShowModalConfirmEmail] = useState(false);
+  const [modalTitle, setModalTitle] = useState("");
+  const [modalMessage, setModalMessage] = useState("");
+  const [isWaiting, setIsWaiting] = useState(false);
+
+  const handleCloseModalConfirmEmail = () => setShowModalConfirmEmail(false);
+  const handleShowModalConfirmEmail = () => setShowModalConfirmEmail(true);
+
   return (
     <div className={styles.pageContainer}>
       <Container>
@@ -28,38 +39,85 @@ export default function Home() {
                     email: '',
                   }}
                   onSubmit={async values => {
+                    setIsWaiting(true);
+
+                    try {
+
+                      const res = await api.post('users/new', {
+                        name: values.name,
+                        email: values.email,
+                      },
+                        {
+                          validateStatus: function (status) {
+                            return status < 500; // Resolve only if the status code is less than 500
+                          }
+                        }
+                      );
+
+                      if (res.status === 201) {
+                        setModalTitle("Confirm your e-mail");
+                        setModalMessage("We sent you an email.");
+                        handleShowModalConfirmEmail();
+
+                        values.name = '';
+                        values.email = '';
+                      }
+                      else {
+                        setModalTitle("Error");
+                        setModalMessage("User already exists and activated.");
+                        handleShowModalConfirmEmail();
+                        setIsWaiting(false);
+                      }
+                    }
+                    catch {
+                      setModalTitle("Error");
+                      setModalMessage("Something went wrong");
+                      handleShowModalConfirmEmail();
+                    }
+
+                    setIsWaiting(false);
                   }}
                   validationSchema={validationSchema}
-                  isInitialValid={false}
+                  validateOnChange={false}
                 >
-                  {({ handleChange, handleSubmit, values, errors, isValid, touched }) => (
+                  {({ handleChange, handleBlur, handleSubmit, values, errors, isValid, touched }) => (
                     <Form onSubmit={handleSubmit}>
                       <Row>
                         <Col>
-                          <Form.Group className="mb-4" controlId="formSignupEmail">
-                            <Form.Label>Your e-mail</Form.Label>
+                          <Form.Group className="mb-4" controlId="formSignupName">
+                            <Form.Label>Your name</Form.Label>
                             <Form.Control type="text"
                               onChange={handleChange}
+                              onBlur={handleBlur}
                               value={values.name}
                               name="name"
-                              isInvalid={!!errors.name}
+                              isInvalid={!!errors.name && touched.name}
                             />
                             {touched.name && <Form.Control.Feedback type="invalid">{errors.name}</Form.Control.Feedback>}
                           </Form.Group>
 
-                          <Form.Group className="mb-4" controlId="formLoginPassword">
-                            <Form.Label>Your e-mail</Form.Label>
+                          <Form.Group className="mb-4" controlId="formSignupEmail">
+                            <Form.Label>E-mail</Form.Label>
                             <Form.Control type="text"
                               onChange={handleChange}
+                              onBlur={handleBlur}
                               value={values.email}
                               name="email"
-                              isInvalid={!!errors.email}
+                              isInvalid={!!errors.email && touched.email}
                             />
                             {touched.email && <Form.Control.Feedback type="invalid">{errors.email}</Form.Control.Feedback>}
                           </Form.Group>
 
                           <Button type="submit" variant="info" disabled={isValid ? false : true}>
-                            Register
+                            {
+                              isWaiting ? <Spinner
+                                as="span"
+                                animation="border"
+                                size="sm"
+                                role="status"
+                                aria-hidden="true"
+                              /> : "Register"
+                            }
                           </Button>
                         </Col>
                       </Row>
@@ -79,6 +137,24 @@ export default function Home() {
           </Col>
         </Row>
       </Container>
+
+      <Modal show={showModalConfirmEmail} onHide={handleCloseModalConfirmEmail}>
+        <Modal.Header>
+          <Modal.Title>{modalTitle}</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <Row className="mt-4 mb-4 justify-content-center align-items-center text-center">
+            <Col sm={5} className="mb-3">
+              <p>{modalMessage}</p>
+            </Col>
+          </Row>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={handleCloseModalConfirmEmail}>
+            Close
+          </Button>
+        </Modal.Footer>
+      </Modal>
     </div>
   )
 }

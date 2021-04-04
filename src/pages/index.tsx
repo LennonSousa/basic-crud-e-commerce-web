@@ -1,12 +1,14 @@
-import { useState, useContext } from 'react';
-import { useRouter } from 'next/router';
+import { useState, useContext, isValidElement } from 'react';
+import { GetServerSideProps } from 'next';
 import Link from 'next/link';
-import { Container, Row, Col, Button, Form, Image, Modal, Spinner, Toast } from 'react-bootstrap';
+import { Container, Row, Col, Button, Form, Image, Modal, Spinner, Toast, Alert } from 'react-bootstrap';
 import { Formik } from 'formik';
 import * as Yup from 'yup';
 import { FaLock, FaCheckCircle } from 'react-icons/fa';
 
 import { AuthContext } from '../contexts/authContext';
+
+import api from '../services/api';
 
 import styles from '../styles/pages/LandingPage.module.css';
 
@@ -20,13 +22,7 @@ const resetPasswordValidationSchema = Yup.object().shape({
 });
 
 export default function Home() {
-  const router = useRouter();
   const { signed, handleLogin } = useContext(AuthContext);
-
-  const [showModalConfirmEmail, setShowModalConfirmEmail] = useState(false);
-
-  const handleCloseModalConfirmEmail = () => setShowModalConfirmEmail(false);
-  const handleShowModalConfirmEmail = () => setShowModalConfirmEmail(true);
 
   const [showModalResetPassword, setShowModalResetPassword] = useState(false);
 
@@ -34,7 +30,12 @@ export default function Home() {
   const handleShowModalResetPassword = () => setShowModalResetPassword(true);
 
   const [errorMessageLogin, setErrorMessageLogin] = useState('');
-  const [waitingLogin, setWaitingLogin] = useState(false);
+  const [isWaitingLogin, setIsWaitingLogin] = useState(false);
+
+  const [sentEmail, setSentEmail] = useState(false);
+  const [messageReset, setMessageReset] = useState('');
+  const [isMessageResetSuccess, setIsMessageResetSuccess] = useState(false);
+  const [isWaitingReset, setIsWaitingReset] = useState(false);
 
   const [showErrorLogin, setShowErrorLogin] = useState(false);
 
@@ -57,7 +58,7 @@ export default function Home() {
                     password: '',
                   }}
                   onSubmit={async values => {
-                    setWaitingLogin(true);
+                    setIsWaitingLogin(true);
 
                     try {
                       const resLogin = await handleLogin(values.email, values.password);
@@ -73,9 +74,13 @@ export default function Home() {
                         toggleShowLogin();
                       }
                     }
-                    catch { }
+                    catch {
+                      setShowErrorLogin(true);
+                      setErrorMessageLogin("Connection error!");
+                      toggleShowLogin();
+                    }
 
-                    setWaitingLogin(false);
+                    setIsWaitingLogin(false);
                   }}
                   validationSchema={validationSchema}
                   validateOnChange={false}
@@ -112,7 +117,7 @@ export default function Home() {
                             {
                               signed ? <FaCheckCircle /> :
                                 (
-                                  waitingLogin ? <Spinner
+                                  isWaitingLogin ? <Spinner
                                     as="span"
                                     animation="border"
                                     size="sm"
@@ -127,13 +132,13 @@ export default function Home() {
 
                       <Row className="mt-4">
                         <Col>
-                          <button className={`btn btn-link ${styles.formBtnLink}`} onClick={handleShowModalResetPassword}>Forgot my password</button>
+                          <button className={`btn btn-link ${styles.formBtnLink}`} type="button" onClick={handleShowModalResetPassword}>Forgot my password</button>
                         </Col>
 
                         <Toast onClose={toggleShowLogin} show={showErrorLogin} animation={false} autohide>
                           <Toast.Header style={{ backgroundColor: 'var(--danger)', color: '#fff' }}>
                             <FaLock />
-                            <strong className="mr-auto">Nice try</strong>
+                            <strong className="mr-auto"> Nice try</strong>
                           </Toast.Header>
                           <Toast.Body>{errorMessageLogin}</Toast.Body>
                         </Toast>
@@ -155,28 +160,6 @@ export default function Home() {
         </Row>
       </Container>
 
-      <Modal show={showModalConfirmEmail} onHide={handleCloseModalConfirmEmail}>
-        <Modal.Header>
-          <Modal.Title>
-            Finish your profile
-          </Modal.Title>
-        </Modal.Header>
-        <Modal.Body>
-          <Row className="mt-4 mb-4 justify-content-center align-items-center text-center">
-            <Col sm={5} className="mb-3">
-            </Col>
-          </Row>
-        </Modal.Body>
-        <Modal.Footer>
-          <Button variant="info">
-            Save
-          </Button>
-          <Button variant="secondary" onClick={handleCloseModalConfirmEmail}>
-            Close
-          </Button>
-        </Modal.Footer>
-      </Modal>
-
       <Modal show={showModalResetPassword} onHide={handleCloseModalResetPassword}>
         <Modal.Header>
           <Modal.Title>
@@ -188,32 +171,83 @@ export default function Home() {
             email: '',
           }}
           onSubmit={async values => {
+            setSentEmail(false);
+            setIsWaitingReset(true);
+
+            try {
+
+              const res = await api.post('users/reset', {
+                email: values.email,
+              },
+                {
+                  validateStatus: function (status) {
+                    return status < 500; // Resolve only if the status code is less than 500
+                  }
+                }
+              );
+
+              if (res.status === 201) {
+                setIsMessageResetSuccess(true);
+                setMessageReset("We sent you an email. Verify your e-mail");
+
+                values.email = '';
+              }
+              else {
+                setIsMessageResetSuccess(false);
+                setMessageReset("User dosen't exists!");
+              }
+            }
+            catch {
+              setIsMessageResetSuccess(false);
+              setMessageReset("Something went wrong");
+            }
+
+            setSentEmail(true);
+            setIsWaitingReset(false);
           }}
           validationSchema={resetPasswordValidationSchema}
-          isInitialValid={false}
+          validateOnChange={false}
         >
-          {({ handleChange, handleSubmit, values, errors, isValid, touched }) => (
+          {({ handleChange, handleBlur, handleSubmit, values, errors, isValid, touched }) => (
             <Form onSubmit={handleSubmit}>
               <Modal.Body>
                 <Row>
                   <Col>
-                    <Form.Group className="mb-4" controlId="formLogintEmail">
+                    <Form.Group className="mb-4" controlId="formResetEmail">
                       <Form.Label>Your e-mail</Form.Label>
                       <Form.Control type="text"
                         onChange={handleChange}
+                        onBlur={handleBlur}
                         value={values.email}
                         name="email"
-                        isInvalid={!!errors.email}
+                        isInvalid={!!errors.email && touched.email}
                       />
                       {touched.email && <Form.Control.Feedback type="invalid">{errors.email}</Form.Control.Feedback>}
                     </Form.Group>
                   </Col>
                 </Row>
+                {
+                  sentEmail && <Row>
+                    <Col>
+                      <Alert variant={isMessageResetSuccess ? "success" : "danger"}>
+                        {messageReset}
+                      </Alert>
+                    </Col>
+                  </Row>
+                }
               </Modal.Body>
               <Modal.Footer>
                 <Button variant="info" disabled={isValid ? false : true} type="submit">
-                  Send e-mail
-              </Button>
+                  {
+                    isWaitingReset ? <Spinner
+                      as="span"
+                      animation="border"
+                      size="sm"
+                      role="status"
+                      aria-hidden="true"
+                    /> : "Send email"
+                  }
+                </Button>
                 <Button variant="secondary" onClick={handleCloseModalResetPassword}>
                   Close
               </Button>
@@ -224,4 +258,35 @@ export default function Home() {
       </Modal>
     </div>
   )
+}
+
+export const getServerSideProps: GetServerSideProps = async (context) => {
+  const { token } = context.req.cookies;
+
+  if (token) {
+    try {
+      const res = await api.get('/users/authenticated',
+        {
+          validateStatus: function (status) {
+            return status < 500; // Resolve only if the status code is less than 500.
+          },
+          headers: { Authorization: `Bearer ${token}` }
+        }
+      );
+
+      if (res.status === 202) { // Alread authenticated!
+        return {
+          redirect: {
+            destination: '/dashboard/products',
+            permanent: false,
+          },
+        }
+      }
+    }
+    catch { }
+  }
+
+  return {
+    props: {},
+  }
 }

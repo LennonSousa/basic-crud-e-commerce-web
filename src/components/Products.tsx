@@ -341,7 +341,7 @@ const ProductItem: React.FC<ProductsProps> = ({ product }) => {
                                             </Row>
                                         </>
                                     }
-                                    <input type="file" onChange={handleCreateImage} id="image[]" />
+                                    <input type="file" accept=".jpg, .jpeg, .png" onChange={handleCreateImage} id="image[]" />
                                 </label>
                             </Row>
                             <Row>

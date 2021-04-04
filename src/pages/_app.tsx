@@ -1,15 +1,12 @@
-import 'bootstrap/dist/css/bootstrap.min.css';
 import Head from 'next/head';
 
 import { AuthProvider } from '../contexts/authContext';
 import { ProductsProvider } from '../contexts/productsContext';
+
+import 'bootstrap/dist/css/bootstrap.min.css';
 import '../styles/global.css';
 
-
-
 function MyApp({ Component, pageProps }) {
-  console.log('MyApp');
-
   return <>
     <Head>
       <meta charSet="utf-8" />

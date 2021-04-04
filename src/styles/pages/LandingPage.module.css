@@ -21,4 +21,5 @@
 .formContainer a, .formBtnLink {
     font-size: 0.9rem;
     font-weight: 400;
+    padding: 0;
 }
