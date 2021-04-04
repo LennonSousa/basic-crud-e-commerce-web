@@ -1,6 +1,7 @@
 ## This is a Basic CRUD e-commerce project frontend.
 
 This app can:
+
 As a user, create a product with these fields: name, description, price, published_at and paused.
 
 As a user, upload one or more images to the product.
